@@ -1,0 +1,274 @@
+---
+title: "Code for project writeup"
+author: "Paige Lee"
+date: "12/9/2021"
+output: html_document
+---
+
+## Clean data and load libraries
+```{r}
+train <- read.csv("training.csv") # Read in training data
+test <- read.csv("test.csv") # Read in testing data
+train <- train[, -1] # Remove ID column
+ids <- test$Id # Save ID column from test data to use for prediction.csv
+test <- test[, -1] # Remove ID column
+
+library(randomForest)
+library(caret)
+```
+
+## Fit the full model
+Using lecture code
+```{r}
+# Fit classification tree using the 'randomForest' library.
+set.seed(1)
+
+# Use the out-of-bag estimator to select the optimal parameter values.
+# Here, we specify how we will evaluate our models
+oob_train_control <- trainControl(method = "oob", 
+                                  classProbs = TRUE, 
+                                  savePredictions = TRUE)
+
+# We find the best value for m using cross validation
+forestfit <- train(Y ~ ., 
+                   data = train, method = 'rf', importance = FALSE,
+                   trControl = oob_train_control) # It takes slightly longer than a 
+# standard decision tree.
+plot(forestfit)
+
+# We can also follow the practical advice and set the value of 
+# m beforehand.
+recommended.mtry <-floor(sqrt(ncol(train))) ## prespecified m value
+tunegrid <- expand.grid(mtry = recommended.mtry) 
+set.seed(1)
+forestfit.m <- train(Y ~ ., 
+                     data = train, method = 'rf', importance = FALSE,
+                     trControl = oob_train_control, tuneGrid = tunegrid) 
+print(forestfit.m, digits = 2)
+
+
+# What if we wish to fit different numbers of trees?
+set.seed(1)
+forestfit.ntree <- train(Y ~ ., 
+                         data = train, method = 'rf', ntree = 500, importance = T,
+                         trControl = oob_train_control, tuneGrid = tunegrid) 
+print(forestfit.ntree, digits = 2)
+# Show final model. This is the call to 'randomForest' library.
+forestfit.ntree$finalModel
+```
+
+## Variable importance plot (Gini importance) using full model
+Using lecture code
+```{r}
+# the way to obtain both importance plots 
+set.seed(1)
+forestfit.RF <- randomForest(Y ~ ., 
+                             data = train, mtry = recommended.mtry,
+                             ntree = 500, importance = TRUE) 
+# This shows the Variable Permutation Importance, and the correct one
+# according to the experts.
+#
+varImpPlot(forestfit.RF, scale = F) ## get both plots for variable importance
+varImpPlot(forestfit.RF, type = 1, scale = F) ## type=1 means permutation importance
+varImpPlot(forestfit.RF, type = 2, scale = F) ## type=1 means Gini importance
+
+
+# one way to obtain Gini importance
+RFimp <- varImp(forestfit.m, scale = F) 
+plot(RFimp)  ## this is Gini importance
+```
+
+Important predictors: X2, X4, X5, X8, X10, X11, X12, X13, X14, X15
+
+## Fit the model after feature selection
+Using lecture code
+```{r}
+set.seed(1)
+oob_train_control <- trainControl(method = "oob", 
+                                  classProbs = TRUE, 
+                                  savePredictions = TRUE)
+
+# We find the best value for m using cross validation
+forestfit <- train(Y ~ X1 + X2 + X3 + X4 + X9 + X12 + X15, 
+                   data = train, method = 'rf', importance = FALSE,
+                   trControl = oob_train_control) # It takes slightly longer than a 
+# standard decision tree.
+plot(forestfit)
+
+# We can also follow the practical advice and set the value of 
+# m beforehand.
+recommended.mtry <-floor(sqrt(ncol(train))) ## prespecified m value
+tunegrid <- expand.grid(mtry = recommended.mtry) 
+set.seed(1)
+forestfit.m <- train(Y ~ X1 + X2 + X3 + X4 + X9 + X12 + X15, 
+                     data = train, method = 'rf', importance = FALSE,
+                     trControl = oob_train_control, tuneGrid = tunegrid) 
+print(forestfit.m, digits = 2)
+
+
+# What if we wish to fit different numbers of trees?
+set.seed(1)
+forestfit.ntree <- train(Y ~ X1 + X2 + X3 + X4 + X9 + X12 + X15, 
+                         data = train, method = 'rf', ntree = 500, importance = T,
+                         trControl = oob_train_control, tuneGrid = tunegrid) 
+print(forestfit.ntree, digits = 2)
+# Show final model. This is the call to 'randomForest' library.
+forestfit.ntree$finalModel
+```
+mtry = 4 and ntree = 500
+
+## Create the model and make predictions
+```{r}
+set.seed(1)
+model <- randomForest(Y ~ X1 + X2 + X3 + X4 + X9 + X12 + X15, data = train, mtry = 4, ntree = 500, importance = TRUE, replace = TRUE)
+model
+
+model_predictions <- predict(model, data = train, newdata = test)
+```
+
+## Bad models
+Model with top 7 predictors (each of the three plots)
+```{r}
+set.seed(1)
+model1 <- randomForest(Y ~ X14 + X13 + X4 + X12 + X2 + X15 + X10, data = train, mtry = 4, ntree = 500, importance = TRUE, replace = TRUE)
+model1
+
+set.seed(1)
+model2 <- randomForest(Y ~ X14 + X8 + X11 + X4 + X13 + X2 + X5, data = train, mtry = 4, ntree = 500, importance = TRUE, replace = TRUE)
+model2
+
+set.seed(1)
+model3 <- randomForest(Y ~ X14 + X11 + X13 + X8 + X4 + X5 + X2, data = train, mtry = 4, ntree = 500, importance = TRUE, replace = TRUE)
+model3
+```
+
+Fit the bad models
+```{r}
+set.seed(1)
+oob_train_control <- trainControl(method = "oob", 
+                                  classProbs = TRUE, 
+                                  savePredictions = TRUE)
+
+# We find the best value for m using cross validation
+forestfit <- train(Y ~ X14 + X13 + X4 + X12 + X2 + X15 + X10, 
+                   data = train, method = 'rf', importance = FALSE,
+                   trControl = oob_train_control) # It takes slightly longer than a 
+# standard decision tree.
+plot(forestfit)
+
+# We can also follow the practical advice and set the value of 
+# m beforehand.
+recommended.mtry <-floor(sqrt(ncol(train))) ## prespecified m value
+tunegrid <- expand.grid(mtry = recommended.mtry) 
+set.seed(1)
+forestfit.m <- train(Y ~ X14 + X13 + X4 + X12 + X2 + X15 + X10, 
+                     data = train, method = 'rf', importance = FALSE,
+                     trControl = oob_train_control, tuneGrid = tunegrid) 
+print(forestfit.m, digits = 2)
+
+
+# What if we wish to fit different numbers of trees?
+set.seed(1)
+forestfit.ntree <- train(Y ~ X14 + X13 + X4 + X12 + X2 + X15 + X10, 
+                         data = train, method = 'rf', ntree = 500, importance = T,
+                         trControl = oob_train_control, tuneGrid = tunegrid) 
+print(forestfit.ntree, digits = 2)
+# Show final model. This is the call to 'randomForest' library.
+forestfit.ntree$finalModel
+```
+mtry = 4 and ntree = 500
+
+```{r}
+set.seed(1)
+oob_train_control <- trainControl(method = "oob", 
+                                  classProbs = TRUE, 
+                                  savePredictions = TRUE)
+
+# We find the best value for m using cross validation
+forestfit <- train(Y ~ X14 + X8 + X11 + X4 + X13 + X2 + X5, 
+                   data = train, method = 'rf', importance = FALSE,
+                   trControl = oob_train_control) # It takes slightly longer than a 
+# standard decision tree.
+plot(forestfit)
+
+# We can also follow the practical advice and set the value of 
+# m beforehand.
+recommended.mtry <-floor(sqrt(ncol(train))) ## prespecified m value
+tunegrid <- expand.grid(mtry = recommended.mtry) 
+set.seed(1)
+forestfit.m <- train(Y ~ X14 + X8 + X11 + X4 + X13 + X2 + X5, 
+                     data = train, method = 'rf', importance = FALSE,
+                     trControl = oob_train_control, tuneGrid = tunegrid) 
+print(forestfit.m, digits = 2)
+
+
+# What if we wish to fit different numbers of trees?
+set.seed(1)
+forestfit.ntree <- train(Y ~ X14 + X8 + X11 + X4 + X13 + X2 + X5, 
+                         data = train, method = 'rf', ntree = 500, importance = T,
+                         trControl = oob_train_control, tuneGrid = tunegrid) 
+print(forestfit.ntree, digits = 2)
+# Show final model. This is the call to 'randomForest' library.
+forestfit.ntree$finalModel
+```
+mtry = 4 and ntree = 500
+
+```{r}
+set.seed(1)
+oob_train_control <- trainControl(method = "oob", 
+                                  classProbs = TRUE, 
+                                  savePredictions = TRUE)
+
+# We find the best value for m using cross validation
+forestfit <- train(Y ~ X14 + X11 + X13 + X8 + X4 + X5 + X2, 
+                   data = train, method = 'rf', importance = FALSE,
+                   trControl = oob_train_control) # It takes slightly longer than a 
+# standard decision tree.
+plot(forestfit)
+
+# We can also follow the practical advice and set the value of 
+# m beforehand.
+recommended.mtry <-floor(sqrt(ncol(train))) ## prespecified m value
+tunegrid <- expand.grid(mtry = recommended.mtry) 
+set.seed(1)
+forestfit.m <- train(Y ~ X14 + X11 + X13 + X8 + X4 + X5 + X2, 
+                     data = train, method = 'rf', importance = FALSE,
+                     trControl = oob_train_control, tuneGrid = tunegrid) 
+print(forestfit.m, digits = 2)
+
+
+# What if we wish to fit different numbers of trees?
+set.seed(1)
+forestfit.ntree <- train(Y ~ X14 + X11 + X13 + X8 + X4 + X5 + X2, 
+                         data = train, method = 'rf', ntree = 500, importance = T,
+                         trControl = oob_train_control, tuneGrid = tunegrid) 
+print(forestfit.ntree, digits = 2)
+# Show final model. This is the call to 'randomForest' library.
+forestfit.ntree$finalModel
+```
+mtry = 4 and ntree = 500
+
+```{r}
+min(model$mse)
+min(model1$mse)
+min(model2$mse)
+min(model3$mse)
+```
+
+```{r}
+set.seed(1)
+model <- randomForest(Y ~ X1 + X2 + X3 + X4 + X9 + X12 + X15, data = train, mtry = 4, ntree = 500, importance = TRUE, replace = TRUE)
+model
+
+set.seed(1)
+model1 <- randomForest(Y ~ X14 + X13 + X4 + X12 + X2 + X15 + X10, data = train, mtry = 4, ntree = 500, importance = TRUE, replace = TRUE)
+model1
+
+set.seed(1)
+model2 <- randomForest(Y ~ X14 + X8 + X11 + X4 + X13 + X2 + X5, data = train, mtry = 4, ntree = 500, importance = TRUE, replace = TRUE)
+model2
+
+set.seed(1)
+model3 <- randomForest(Y ~ X14 + X11 + X13 + X8 + X4 + X5 + X2, data = train, mtry = 4, ntree = 500, importance = TRUE, replace = TRUE)
+model3
+```
